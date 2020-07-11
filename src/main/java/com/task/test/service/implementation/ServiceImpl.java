@@ -19,8 +19,9 @@ public class ServiceImpl implements com.task.test.service.Service {
     private static final int WHITE_RGB = -1;
     private static final int GRAY_RGB = -8882056;
     // The lower the value, the higher the accuracy
-    private static final int ACCURACY = 7;
+    public static final int ACCURACY = 1;
     private static final String REFERENCE_IMAGES = "./referenceImages";
+
 
     @Override
     public int countPoints(BufferedImage img) {
@@ -91,11 +92,11 @@ public class ServiceImpl implements com.task.test.service.Service {
     }
 
     @Override
-    public String determinateSymbol(Map<String, int[]> referencePoints, int[] verifiablePoints) {
+    public String determinateSymbol(Map<String, int[]> referencePoints, int[] verifiablePoints, int accuracy) {
         for (Map.Entry<String, int[]> entry : referencePoints.entrySet()) {
             boolean flag = true;
             for (int i = 0; i < entry.getValue().length; i++) {
-                if (Math.abs(entry.getValue()[i] - verifiablePoints[i]) > ACCURACY) {
+                if (Math.abs(entry.getValue()[i] - verifiablePoints[i]) > accuracy) {
                     flag = false;
                     break;
                 }
@@ -104,7 +105,7 @@ public class ServiceImpl implements com.task.test.service.Service {
                 return entry.getKey();
             }
         }
-        throw new IllegalArgumentException();
+        return determinateSymbol(referencePoints, verifiablePoints, ++accuracy);
     }
 
     public Map<String, int[]> getReferences() {
@@ -216,7 +217,7 @@ public class ServiceImpl implements com.task.test.service.Service {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        throw new IllegalArgumentException();
+        return advanceImgs;
     }
 
     public String getFolder() {

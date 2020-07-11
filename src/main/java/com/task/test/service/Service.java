@@ -16,7 +16,7 @@ public interface Service {
 
     int determinateImgHeight(BufferedImage img);
 
-    String determinateSymbol(Map<String, int[]> referenceValues, int[] verifiablePoints);
+    String determinateSymbol(Map<String, int[]> referenceValues, int[] verifiablePoints, int accuracy);
 
     Map<String, int[]> getReferences();
 
