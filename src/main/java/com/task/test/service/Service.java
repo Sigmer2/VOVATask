@@ -1,6 +1,8 @@
 package com.task.test.service;
 
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -18,13 +20,13 @@ public interface Service {
 
     String determinateSymbol(Map<String, int[]> referenceValues, int[] verifiablePoints, int accuracy);
 
-    Map<String, int[]> getReferences();
+    Map<String, int[]> getReferences() throws URISyntaxException, IOException;
 
     int[] getPartPoints(BufferedImage img);
 
     BufferedImage getAccurateImg(BufferedImage advanceImg);
 
-    List<BufferedImage> getListAdvanceImgs(Path path);
+    List<BufferedImage> getListAdvanceImgs(BufferedImage img);
 
     String getFolder();
 }
