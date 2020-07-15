@@ -1,27 +1,29 @@
 package com.task.test.service.implementation;
 
-import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
+import java.util.Objects;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 public class ServiceImpl implements com.task.test.service.Service {
     private static final int WHITE_RGB = -1;
     private static final int GRAY_RGB = -8882056;
     // The lower the value, the higher the accuracy
     public static final int ACCURACY = 1;
-    private static final String REFERENCE_IMAGES = "./referenceImages";
-
+    private static final String PATH_TO_REFERENCE_IMAGES = "referenceImages/";
 
     @Override
     public int countPoints(BufferedImage img) {
@@ -108,25 +110,20 @@ public class ServiceImpl implements com.task.test.service.Service {
         return determinateSymbol(referencePoints, verifiablePoints, ++accuracy);
     }
 
-    public Map<String, int[]> getReferences() {
+    public Map<String, int[]> getReferences() throws URISyntaxException, IOException {
         final String VALUES = "(?<=\\p{Lower})(?=\\d)|(?<=\\d)(?=\\p{Lower})" +
                 "|(?<=\\p{Upper})(?=\\p{Lower})|(?<=\\p{Lower})(?=\\p{Upper})";
         Map<String, int[]> references = new HashMap<>();
-        try (Stream<Path> paths = Files.walk(Paths.get(REFERENCE_IMAGES))) {
-            paths.filter(path -> path.toFile().isFile())
-                    .forEach(path -> {
-                        String fileName = FilenameUtils.removeExtension(path.getFileName().toString());
-                        String[] values = fileName.split(VALUES);
-                        List<BufferedImage> listAdvanceImgs = getListAdvanceImgs(path);
-                        for (int i = 0; i < values.length; i++) {
-                            BufferedImage accurateImg = getAccurateImg(listAdvanceImgs.get(i));
-                            int[] partPoints = getPartPoints(accurateImg);
-                            references.put(values[i], partPoints);
-                        }
-                    });
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        Map<String, BufferedImage> referenceImgs = getReferenceImgs();
+        referenceImgs.forEach((name, img) -> {
+            String[] values = name.split(VALUES);
+            List<BufferedImage> listAdvanceImgs = getListAdvanceImgs(img);
+            for (int i = 0; i < values.length; i++) {
+                BufferedImage accurateImg = getAccurateImg(listAdvanceImgs.get(i));
+                int[] partPoints = getPartPoints(accurateImg);
+                references.put(values[i], partPoints);
+            }
+        });
         return references;
     }
 
@@ -184,7 +181,7 @@ public class ServiceImpl implements com.task.test.service.Service {
                 heightForValue);
     }
 
-    public List<BufferedImage> getListAdvanceImgs(Path path) {
+    public List<BufferedImage> getListAdvanceImgs(BufferedImage img) {
         int[] xPointsAdvance = {146, 218, 289, 361, 432};
         int yPointForValueAdvance = 590;
         int widthForValueAdvance = 35;
@@ -193,29 +190,23 @@ public class ServiceImpl implements com.task.test.service.Service {
         int widthForSuitAdvance = 25;
         int heightForSuitAdvance = 20;
         List<BufferedImage> advanceImgs = new LinkedList<>();
-        try {
-            BufferedImage img = ImageIO.read(path.toFile());
-
-            for (int xPointAdvance : xPointsAdvance) {
-                BufferedImage valueImgAdvance = img.getSubimage(
-                        xPointAdvance,
-                        yPointForValueAdvance,
-                        widthForValueAdvance,
-                        heightForValueAdvance);
-                int verifiableRgb = valueImgAdvance.getRGB(widthForValueAdvance - 1, heightForValueAdvance - 1);
-                if (verifiableRgb != WHITE_RGB && verifiableRgb != GRAY_RGB) {
-                    return advanceImgs;
-                }
-                BufferedImage suitImgAdvance = img.getSubimage(
-                        xPointAdvance,
-                        yPointForSuitAdvance,
-                        widthForSuitAdvance,
-                        heightForSuitAdvance);
-                advanceImgs.add(valueImgAdvance);
-                advanceImgs.add(suitImgAdvance);
+        for (int xPointAdvance : xPointsAdvance) {
+            BufferedImage valueImgAdvance = img.getSubimage(
+                    xPointAdvance,
+                    yPointForValueAdvance,
+                    widthForValueAdvance,
+                    heightForValueAdvance);
+            int verifiableRgb = valueImgAdvance.getRGB(widthForValueAdvance - 1, heightForValueAdvance - 1);
+            if (verifiableRgb != WHITE_RGB && verifiableRgb != GRAY_RGB) {
+                return advanceImgs;
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+            BufferedImage suitImgAdvance = img.getSubimage(
+                    xPointAdvance,
+                    yPointForSuitAdvance,
+                    widthForSuitAdvance,
+                    heightForSuitAdvance);
+            advanceImgs.add(valueImgAdvance);
+            advanceImgs.add(suitImgAdvance);
         }
         return advanceImgs;
     }
@@ -225,5 +216,37 @@ public class ServiceImpl implements com.task.test.service.Service {
         jFileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         jFileChooser.showSaveDialog(null);
         return jFileChooser.getSelectedFile().toString();
+    }
+
+    private Map<String, BufferedImage> getReferenceImgs() throws IOException, URISyntaxException {
+        File jarFile = new File(getClass().getProtectionDomain().getCodeSource().getLocation().getPath());
+        Map<String, BufferedImage> referenceImgs = new HashMap<>();
+        if (jarFile.isFile()) { // Run with Jar
+            try (JarFile jar = new JarFile(jarFile)) {
+                Enumeration<JarEntry> entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    String filePath = entries.nextElement().getName();
+                    if (filePath.startsWith(PATH_TO_REFERENCE_IMAGES)
+                            && filePath.length() > PATH_TO_REFERENCE_IMAGES.length()) {
+                        URL resource = this.getClass().getResource("/" + filePath);
+                        BufferedImage img = ImageIO.read(resource);
+                        String fileName = StringUtils.substringBetween(filePath, "/", ".");
+                        referenceImgs.put(fileName, img);
+                    }
+                }
+                return referenceImgs;
+            }
+        } else { // Run with IDE
+            URL url = getClass().getResource("/" + PATH_TO_REFERENCE_IMAGES);
+            if (url != null) {
+                File resourceFolder = new File(url.toURI());
+                for (File file : Objects.requireNonNull(resourceFolder.listFiles())) {
+                    BufferedImage img = ImageIO.read(file);
+                    String fileName = StringUtils.substringBefore(file.getName(), ".");
+                    referenceImgs.put(fileName, img);
+                }
+            }
+        }
+        return referenceImgs;
     }
 }
